@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>分声部转换 - Sheet Music Analyzer</title>
+    <style>
+        /* 基础样式 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                       "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+
+        /* 导航栏样式 */
+        .nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.2rem;
+            background: #ffffff;
+            margin-bottom: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #2c3e50;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: color 0.3s;
+        }
+
+        .nav a:hover {
+            color: #2196F3;
+        }
+
+        /* 返回按钮样式 */
+        .back-button {
+            padding: 0.5rem 1rem;
+            background-color: #2196F3;
+            color: white;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background-color 0.3s;
+        }
+
+        .back-button:hover {
+            background-color: #1976D2;
+        }
+
+        /* 上传区域样式 */
+        .upload-section {
+            border: 2px dashed #ced4da;
+            padding: 2.5rem;
+            text-align: center;
+            transition: all 0.3s;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+            max-width: 800px;
+            background: #ffffff;
+            border-radius: 12px;
+        }
+
+        .upload-section.dragover {
+            border-color: #2196F3;
+            background-color: rgba(33, 150, 243, 0.05);
+            transform: scale(1.01);
+        }
+
+        .upload-button {
+            background: #2196F3;
+            color: white;
+            padding: 12px 28px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 20px 0;
+            transition: all 0.3s;
+            font-size: 1rem;
+            border: none;
+        }
+
+        .upload-button:hover {
+            background: #1976D2;
+            transform: translateY(-1px);
+        }
+
+        /* 状态提示样式 */
+        .status-message {
+            margin-top: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+
+        .status-message.uploading {
+            color: #2196F3;
+            background: rgba(33, 150, 243, 0.1);
+        }
+
+        .status-message.success {
+            color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        .status-message.error {
+            color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+        }
+
+        /* MIDI 文件存储区域样式 */
+        .midi-files {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .midi-files h3 {
+            margin-bottom: 10px;
+        }
+
+        .midi-files-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .midi-files-list a {
+            text-decoration: none;
+            color: #2196F3;
+            font-size: 1rem;
+        }
+
+        .midi-files-list a:hover {
+            text-decoration: underline;
+        }
+
+        .clear-button {
+            background: #f44336;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .clear-button:hover {
+            background: #d32f2f;
+        }
+
+        /* 弹窗样式 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            border-radius: 5px;
+            z-index: 1000;
+            display: none;
+        }
+
+        /* 进度条样式 */
+        .progress-bar {
+            width: 100%;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        .progress-bar-fill {
+            height: 20px;
+            background-color: #2196F3;
+            width: 0%;
+            transition: width 0.5s;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .upload-section {
+                padding: 1.5rem;
+                min-height: 250px;
+            }
+
+            .nav {
+                padding: 1rem;
+                text-align: center;
+            }
+
+            .nav a {
+                display: block;
+                margin: 0.8rem 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="nav">
+        <div class="nav-links">
+            <a href="/">首页</a>
+            <a href="/part">*=*</a>
+            <a href="/play_part">分声部播放</a>
+        </div>
+        <!-- 移动后的返回按钮 -->
+        <a href="/" class="back-button">返回首页</a>
+    </nav>
+
+    <!-- 上传区域 -->
+    <div class="upload-section"
+         id="dropZone"
+         ondrop="handleDrop(event)"
+         ondragover="handleDragOver(event)"
+         ondragleave="handleDragLeave(event)">
+        <h2>将PDF乐谱拖放到这里 或</h2>
+        <label for="pdfUpload" class="upload-button">选择文件</label>
+        <input type="file" id="pdfUpload" accept="application/pdf" hidden>
+        <div id="uploadStatus" class="status-message"></div>
+        <button id="convertButton" class="upload-button" style="display: none;">开始转换</button>
+        <!-- 进度条 -->
+        <div class="progress-bar">
+            <div class="progress-bar-fill" id="progressBarFill"></div>
+        </div>
+    </div>
+
+    <!-- MIDI 文件存储区域 -->
+    <div class="midi-files">
+        <h3>已下载的 MIDI 文件</h3>
+        <div class="midi-files-list" id="midiFilesList"></div>
+        <button class="clear-button" onclick="clearMidiFiles()">清空 MIDI 文件</button>
+    </div>
+
+    <!-- 弹窗 -->
+    <div class="toast" id="convertingToast">正在转换，请稍等...</div>
+    <div class="toast" id="successToast">转换已完成</div>
+
+    <script>
+        // 拖放事件处理
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('dropZone').classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('dropZone').classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('dropZone').classList.remove('dragover');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+
+        // 文件选择事件监听
+        document.getElementById('pdfUpload').addEventListener('change', function(e) {
+            if(e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // 统一文件处理函数
+        function handleFile(file) {
+            if (!validateFile(file)) return;
+
+            showStatus('正在上传文件中...', 'uploading');
+            uploadFile(file);
+        }
+
+        // 文件验证
+        function validateFile(file) {
+            // 文件类型验证
+            if (file.type !== 'application/pdf') {
+                showStatus('错误：仅支持PDF格式文件', 'error');
+                return false;
+            }
+
+            // 文件大小验证（15MB限制）
+            const maxSize = 15 * 1024 * 1024;
+            if (file.size > maxSize) {
+                showStatus('错误：文件大小超过15MB限制', 'error');
+                return false;
+            }
+
+            return true;
+        }
+
+        // 文件上传
+        function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('pdf', file);
+
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`上传失败：${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showStatus('文件上传成功', 'success');
+                    document.getElementById('convertButton').style.display = 'block';
+                    document.getElementById('convertButton').addEventListener('click', () => {
+                        startConversion(data.task_id);
+                    });
+                } else {
+                    showStatus(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showStatus(error.message, 'error');
+            });
+        }
+
+        // 状态显示
+        function showStatus(message, type) {
+            const statusElement = document.getElementById('uploadStatus');
+            statusElement.textContent = message;
+            statusElement.className = `status-message ${type}`;
+        }
+
+        // 更新进度条
+        function updateProgress(percentage) {
+            const progressBarFill = document.getElementById('progressBarFill');
+            progressBarFill.style.width = `${percentage}%`;
+        }
+
+        // 添加 MIDI 文件链接
+        function addMidiFileLink(url, text) {
+            const midiFilesList = document.getElementById('midiFilesList');
+            const link = document.createElement('a');
+            link.href = url;
+            link.textContent = text;
+            link.download = true;
+            midiFilesList.appendChild(link);
+        }
+
+        // 清空 MIDI 文件
+        function clearMidiFiles() {
+            const midiFilesList = document.getElementById('midiFilesList');
+            midiFilesList.innerHTML = '';
+        }
+
+        // 显示弹窗
+        function showToast(toastElement, duration) {
+            toastElement.style.display = 'block';
+            setTimeout(() => {
+                toastElement.style.display = 'none';
+            }, duration);
+        }
+
+        // 开始转换
+        function startConversion(taskId) {
+            // 显示正在转换的弹窗
+            const convertingToast = document.getElementById('convertingToast');
+            showToast(convertingToast, 10000); // 弹窗持续10秒
+
+            // 初始化进度条为 0%
+            updateProgress(0);
+
+            fetch(`/api/convert-parts/${taskId}`, {
+                method: 'POST'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`转换失败：${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // 更新进度条到 50%
+                    updateProgress(50);
+
+                    // 模拟转换为 MXL 文件
+                    setTimeout(() => {
+                        // 更新进度条到 65%
+                        updateProgress(65);
+
+                        // 模拟转换为 XML 文件
+                        setTimeout(() => {
+                            // 更新进度条到 80%
+                            updateProgress(80);
+
+                            // 模拟转换为多个 XML 文件
+                            setTimeout(() => {
+                                // 更新进度条到 100%
+                                updateProgress(100);
+
+                                // 显示转换完成的弹窗
+                                const successToast = document.getElementById('successToast');
+                                showToast(successToast, 2000); // 弹窗持续2秒
+
+                                // 显示 MIDI 文件链接
+                                data.download_urls.forEach((url, index) => {
+                                    addMidiFileLink(url, `MIDI 文件 ${index + 1}`);
+                                });
+
+                                // 恢复初始状态
+                                resetUploadState();
+                            }, 1000); // 模拟转换为 MIDI 文件
+                        }, 1000); // 模拟转换为多个 XML 文件
+                    }, 1000); // 模拟转换为 XML 文件
+                } else {
+                    showStatus(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showStatus(error.message, 'error');
+            });
+        }
+
+        // 恢复初始状态
+        function resetUploadState() {
+            document.getElementById('uploadStatus').textContent = '';
+            document.getElementById('convertButton').style.display = 'none';
+            document.getElementById('convertButton').removeEventListener('click', startConversion);
+            document.getElementById('pdfUpload').value = ''; // 清空文件输入框
+            updateProgress(0); // 将进度条归零
+        }
+    </script>
+</body>
+</html>

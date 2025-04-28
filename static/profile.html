@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人中心 - MIDI转换系统</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .file-list {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .file-item {
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+            background: white;
+            transition: background 0.2s;
+        }
+        .file-item:hover {
+            background: #f8f9fa;
+        }
+        .file-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 0.5rem;
+            color: #666;
+            font-size: 0.9em;
+        }
+        .badge {
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
+        .shared {
+            background: #4CAF50;
+            color: white;
+        }
+        .actions button {
+            margin-left: 0.5rem;
+            padding: 4px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .actions button:hover {
+            background: #f0f0f0;
+        }
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        .nav {
+            padding: 1.2rem;
+            background: #ffffff;
+            margin-bottom: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .nav a {
+            margin-right: 2rem;
+            text-decoration: none;
+            color: #2c3e50;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: color 0.3s;
+        }
+        .nav a:hover {
+            color: #2196F3;
+        }
+        #pdfViewerContainer {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+        }
+        #pdfFrame {
+            width: 90%;
+            height: 90%;
+            border: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+        }
+        #closePdfBtn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            z-index: 1001;
+        }
+        .empty, .error {
+            padding: 2rem;
+            text-align: center;
+            color: #666;
+        }
+        .error button {
+            margin-top: 1rem;
+            padding: 8px 20px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .file-name {
+            font-weight: 500;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <a href="/">首页</a>
+        <a href="/play_midi">播放</a>
+        <a href="/play_part">分声部播放</a>
+        <a href="/login">登录</a>
+        <a href="/register">注册</a>
+        <a href="/profile">个人</a>
+        <a href="/social">社交</a>
+    </nav>
+    <div class="header">
+        <h1>我的转换记录</h1>
+        <div>
+            <a href="/social" style="margin-right:1rem;">互动平台</a>
+            <button onclick="logout()">退出登录</button>
+        </div>
+    </div>
+
+    <div class="file-list" id="fileList">
+        <div class="loading">加载中...</div>
+    </div>
+
+    <!-- PDF预览容器 -->
+    <div id="pdfViewerContainer">
+        <button id="closePdfBtn" onclick="closeViewer()">关闭</button>
+        <iframe id="pdfFrame"></iframe>
+    </div>
+
+    <script>
+        // 检查登录状态
+        fetch('/api/check_login', {
+            credentials: 'include'
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data.logged_in) {
+                window.location.href = '/login';
+            } else {
+                loadFiles();
+            }
+        });
+
+        // 加载文件列表
+        function loadFiles() {
+            const container = document.getElementById('fileList');
+            container.innerHTML = '<div class="loading">加载中...</div>';
+
+            fetch('/api/user/files', {
+                credentials: 'include'
+            })
+            .then(res => {
+                if (!res.ok) throw new Error(`HTTP错误! 状态码: ${res.status}`);
+                return res.json();
+            })
+            .then(files => {
+                if (files.length === 0) {
+                    container.innerHTML = '<div class="empty">暂无转换记录</div>';
+                    return;
+                }
+
+                container.innerHTML = files.map(file => `
+                    <div class="file-item">
+                        <div class="file-name">${escapeHtml(file.filename)}</div>
+                        <div class="file-meta">
+                            <span>${new Date(file.created_at).toLocaleString()}</span>
+                            ${file.is_shared ?
+                                '<span class="badge shared">已分享</span>' :
+                                `<button onclick="shareFile('${file.task_id}')">分享到平台</button>`}
+                        </div>
+                        <div class="actions">
+                            <button onclick="downloadFile('${file.task_id}')">下载MIDI</button>
+                            <button onclick="previewPdf('${file.task_id}')">预览PDF</button>
+                        </div>
+                    </div>
+                `).join('');
+            })
+            .catch(error => {
+                console.error('加载失败:', error);
+                container.innerHTML = `
+                    <div class="error">
+                        <p>加载失败，请重试</p>
+                        <button onclick="location.reload()">刷新页面</button>
+                    </div>
+                `;
+            });
+        }
+
+        // HTML转义函数
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // PDF预览功能
+        function previewPdf(taskId) {
+            const viewer = document.getElementById('pdfViewerContainer');
+            viewer.style.display = 'block';
+
+            fetch(`/api/get_pdf_id/${taskId}`, {
+                credentials: 'include'
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('pdfFrame').src = `/preview/${data.file_id}?t=${Date.now()}`;
+                }
+            })
+            .catch(error => {
+                console.error('预览失败:', error);
+                viewer.style.display = 'none';
+                alert('文件加载失败: ' + error.message);
+            });
+        }
+
+        // 关闭预览
+        function closeViewer() {
+            document.getElementById('pdfViewerContainer').style.display = 'none';
+            document.getElementById('pdfFrame').src = '';
+        }
+
+        // 分享功能
+        function shareFile(taskId) {
+            fetch(`/api/share/${taskId}`, {
+                method: 'POST',
+                credentials: 'include'
+            })
+            .then(res => {
+                if (!res.ok) throw new Error('分享失败');
+                location.reload();
+            })
+            .catch(error => alert(error.message));
+        }
+
+ function downloadFile(taskId) {
+    fetch(`/api/get_midi_id/${taskId}`, {  // 获取MIDI文件的ID
+        credentials: 'include'
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            console.log("Preparing to download:", data.file_id);
+            window.location.href = `/download/${data.file_id}`;  // 跳转到下载路由
+        } else {
+            throw new Error(data.message || "获取文件ID失败");
+        }
+    })
+    .catch(error => {
+        console.error('下载失败:', error);
+        alert('下载失败: ' + error.message);
+    });
+}
+        // 退出登录
+        function logout() {
+            fetch('/api/logout', {
+                method: 'POST',
+                credentials: 'include'
+            })
+            .then(() => window.location.href = '/login');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音乐互动社区</title>
+</head>
+<body>
+     <nav class="nav">
+        <a href="/">首页</a>
+        <a href="/play_midi">播放</a>
+        <a href="/play_part">分声部播放</a>
+        <a href="/login">登录</a>
+        <a href="/register">注册</a>
+        <a href="/profile">个人</a>
+        <a href="/social">社交</a>
+    </nav>
+    <div class="header">
+        <h1>音乐互动社区</h1>
+        <div>
+            <a href="/profile" style="margin-right:1rem;">我的文件</a>
+        </div>
+    </div>
+
+    <div id="socialFeed">
+        <div class="loading">加载中...</div>
+    </div>
+
+    <script>
+        // 检查登录状态
+        fetch('/api/check_login', {
+            credentials: 'include'
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data.logged_in) {
+                window.location.href = '/login';
+            } else {
+                loadSocialFeed();
+            }
+        });
+
+        // 加载社交动态
+        function loadSocialFeed() {
+            fetch('/api/feed', {
+                credentials: 'include'
+            })
+            .then(res => {
+                if (!res.ok) throw new Error('加载动态失败');
+                return res.json();
+            })
+            .then(posts => {
+                const currentUserId = ""; // 这里需要根据你的登录状态获取当前用户的ID
+                const container = document.getElementById('socialFeed');
+                container.innerHTML = posts.map(post => `
+                    <div class="post">
+                        <div class="post-header">
+                            <h3 class="post-title">${post.title}</h3>
+                            <div class="post-meta">
+                                <span>作者：${post.author}</span>
+                            </div>
+                        </div>
+                        <div class="post-stats">
+                            <span>❤️ ${post.likes_count} 点赞</span>
+                            <span>💬 ${post.comments_count} 评论</span>
+                            <span>🕒 ${new Date(post.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div class="actions">
+                            <button onclick="toggleLike('${post.social_id}', this)" ${post.is_liked ? 'class="active-like"' : ''}>
+                                ${post.is_liked ? '取消点赞' : '点赞'}
+                            </button>
+                            <button onclick="toggleComments(this)">显示评论</button>
+                             <button onclick="downloadFile('${post.task_id}')">下载MIDI</button>
+                        </div>
+                        <div class="comments" style="display:none;">
+                            <div class="comment-list">${renderComments(post.comments)}</div>
+                            <div class="comment-input">
+                                <textarea placeholder="写下你的评论..."></textarea>
+                                <button onclick="postComment('${post.social_id}', this)">发布</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            })
+            .catch(error => {
+                alert(error.message);
+                window.location.href = '/login';
+            });
+        }
+
+        function toggleLike(postId, button) {
+            const isLiked = button.classList.contains('active-like');
+
+            fetch(`/api/like/${postId}`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: isLiked ? 'unlike' : 'like' })
+            })
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || '操作失败');
+
+                // 更新点赞数和按钮状态
+                const postElement = button.closest('.post');
+                const likesSpan = postElement.querySelector('.post-stats span:first-child');
+                likesSpan.textContent = `❤️ ${data.likes_count} 点赞`;
+
+                button.classList.toggle('active-like');
+                button.textContent = button.classList.contains('active-like') ? '取消点赞' : '点赞';
+            })
+            .catch(error => {
+                alert(error.message);
+                loadSocialFeed(); // 刷新数据保证一致性
+            });
+        }
+
+        function postComment(postId, button) {
+            // 获取DOM元素
+            const textarea = button.previousElementSibling;
+            const content = textarea.value.trim();
+
+            // 前端验证
+            if (!content) {
+                alert('请输入评论内容');
+                return;
+            }
+
+            // 发送请求
+            fetch(`/api/comment/${postId}`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: content })
+            })
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || '评论失败');
+
+                // 动态插入新评论
+                const commentList = button.closest('.comments')
+                                      .querySelector('.comment-list');
+                commentList.innerHTML += `
+                    <div class="comment" data-comment-id="${data.new_comment.comment_id}">
+                        <strong>${data.new_comment.author}</strong>
+                        <span>${new Date(data.new_comment.time).toLocaleString()}</span>
+                        <p>${data.new_comment.content}</p>
+                        ${data.new_comment.can_delete ? `
+                        <button class="delete-btn" onclick="deleteComment('${comment.comment_id}')">
+                            删除
+                        </button>
+                        ` : ''}
+                    </div>
+                `;
+                textarea.value = ''; // 清空输入框
+            })
+            .catch(error => {
+                alert(error.message);
+                loadSocialFeed(); // 失败时刷新整个列表
+            });
+        }
+
+        // 修改删除函数，添加对响应类型的检查
+        function deleteComment(commentId) {
+            if (!confirm('确定要删除这条评论吗？')) return;
+
+            fetch(`/api/comment/${commentId}`, { // 确保这个URL与后端路由匹配
+                method: 'DELETE',
+                credentials: 'include'
+            })
+            .then(async res => {
+                try {
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.message || '删除失败');
+
+                    // 精确删除DOM元素
+                    const commentElement = document.querySelector(
+                        `[data-comment-id="${commentId}"]`
+                    );
+                    commentElement?.remove();
+                } catch (error) {
+                    if (res.status === 200) {
+                        // 如果响应不是 JSON 但状态码是 200，认为删除成功
+                        const commentElement = document.querySelector(
+                            `[data-comment-id="${commentId}"]`
+                        );
+                        commentElement?.remove();
+                    } else {
+                        throw error;
+                    }
+                }
+            })
+            .catch(error => {
+                alert(`删除失败: ${error.message}`);
+                loadSocialFeed(); // 失败时刷新整个列表
+            });
+        }
+
+    function downloadFile(taskId) {
+    fetch(`/api/get_midi_id/${taskId}`, {  // 获取MIDI文件的ID
+        credentials: 'include'
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            console.log("Preparing to download:", data.file_id);
+            window.location.href = `/download/${data.file_id}`;  // 跳转到下载路由
+        } else {
+            throw new Error(data.message || "获取文件ID失败");
+        }
+    })
+    .catch(error => {
+        console.error('下载失败:', error);
+        alert('下载失败: ' + error.message);
+    });
+}
+
+        function renderComments(comments) {
+            return comments.map(comment => {
+                // 这里需要根据你的后端返回的数据结构调整
+                const canDelete = comment.can_delete;
+
+                return `
+                    <div class="comment" data-comment-id="${comment.comment_id}">
+                        <div class="comment-header">
+                            <span>${comment.username}</span>
+                            ${canDelete ? `
+                            <button class="delete-btn" onclick="deleteComment('${comment.comment_id}')">
+                                删除
+                            </button>` : ''}
+                        </div>
+                        <p>${comment.content}</p>
+                        <span>${new Date(comment.created_at).toLocaleString()}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 切换评论显示
+        function toggleComments(button) {
+            const comments = button.closest('.post').querySelector('.comments');
+            comments.style.display = comments.style.display === 'none' ? 'block' : 'none';
+        }
+
+        // 退出登录
+        function logout() {
+            fetch('/api/logout', {
+                method: 'POST',
+                credentials: 'include'
+            })
+            .then(() => window.location.href = '/login')
+            .catch(error => alert('退出失败: ' + error.message));
+        }
+    </script>
+</body>
+</html>

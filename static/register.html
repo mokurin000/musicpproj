@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - 音乐转换系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+        }
+
+        input::placeholder {
+            color: #aaa;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .error {
+            color: #e74c3c;
+            margin-top: 10px;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .login-link {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .login-link a {
+            color: #4CAF50;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .login-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>用户注册</h2>
+        <div id="errorMessage" class="error"></div>
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="username">用户名 (3-20位字母或数字)</label>
+                <input type="text" id="username" name="username"
+                       placeholder="请输入用户名"
+                       minlength="3" maxlength="20"
+                       pattern="[A-Za-z0-9]+" required>
+            </div>
+            <div class="form-group">
+                <label for="password">密码 (至少8位)</label>
+                <input type="password" id="password" name="password"
+                       placeholder="请输入密码"
+                       minlength="8" required>
+            </div>
+            <div class="form-group">
+                <label for="birthday">生日</label>
+                <input type="date" id="birthday" name="birthday" required>
+            </div>
+            <button type="submit">注册</button>
+        </form>
+        <div class="login-link">
+            <p>已有账号？<a href="/login">立即登录</a></p>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('registerForm');
+        const errorMessage = document.getElementById('errorMessage');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            errorMessage.textContent = '';
+
+            const formData = new FormData(form);
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    body: new URLSearchParams(formData)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || '注册失败');
+                }
+
+                alert(data.message);
+                window.location.href = data.redirect || '/login';
+
+            } catch (error) {
+                errorMessage.textContent = error.message;
+                console.error('注册错误:', error);
+            }
+        });
+
+        // 实时输入验证
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('input', () => {
+                if (!input.checkValidity()) {
+                    input.reportValidity();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

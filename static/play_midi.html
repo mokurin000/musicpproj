@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MIDI Player</title>
+    <script src="https://cdn.jsdelivr.net/npm/@magenta/music@1.23.1/es6/core.js"></script>
+</head>
+<body>
+    <h1>MIDI Player</h1>
+    <input type="file" id="midiInput" accept=".mid,.midi">
+    <button id="playBtn" disabled>Play</button>
+    <button id="stopBtn" disabled>Stop</button>
+
+    <script>
+        const core = window.core;
+        let player = null;
+
+        // 初始化播放器
+        async function initPlayer(midiUrl) {
+            const response = await fetch(midiUrl);
+            const midiArrayBuffer = await response.arrayBuffer();
+            const noteSequence = core.midiToSequenceProto(midiArrayBuffer);
+            player = new core.Player();
+            await player.loadSamples(noteSequence);
+            return player;
+        }
+
+        // 文件上传处理
+        document.getElementById('midiInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                // 上传文件
+                const uploadResponse = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const { url } = await uploadResponse.json();
+                await initPlayer(url);
+
+                document.getElementById('playBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = false;
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        // 播放控制
+        document.getElementById('playBtn').addEventListener('click', () => {
+            if (player) player.start();
+        });
+
+        document.getElementById('stopBtn').addEventListener('click', () => {
+            if (player) player.stop();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>乐谱分析工具 - Sheet Music Analyzer</title>
+    <style>
+        /* 基础样式 */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                       "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+
+        /* 导航栏样式 */
+        .nav {
+            padding: 1.2rem;
+            background: #ffffff;
+            margin-bottom: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .nav a {
+            margin-right: 2rem;
+            text-decoration: none;
+            color: #2c3e50;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: color 0.3s;
+        }
+
+        .nav a:hover {
+            color: #2196F3;
+        }
+
+        /* 上传区域样式 */
+        .upload-section {
+            border: 2px dashed #ced4da;
+            padding: 2.5rem;
+            text-align: center;
+            transition: all 0.3s;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto;
+            max-width: 800px;
+            background: #ffffff;
+            border-radius: 12px;
+        }
+
+        .upload-section.dragover {
+            border-color: #2196F3;
+            background-color: rgba(33, 150, 243, 0.05);
+            transform: scale(1.01);
+        }
+
+        .upload-button {
+            background: #2196F3;
+            color: white;
+            padding: 12px 28px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 20px 0;
+            transition: all 0.3s;
+            font-size: 1rem;
+            border: none;
+        }
+
+        .upload-button:hover {
+            background: #1976D2;
+            transform: translateY(-1px);
+        }
+
+        /* 状态提示样式 */
+        .status-message {
+            margin-top: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+
+        .status-message.uploading {
+            color: #2196F3;
+            background: rgba(33, 150, 243, 0.1);
+        }
+
+        .status-message.success {
+            color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        .status-message.error {
+            color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+        }
+
+        /* 进度条样式 */
+        .progress-bar {
+            width: 100%;
+            background-color: #f3f3f3;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 20px;
+        }
+
+        .progress-bar-fill {
+            height: 20px;
+            background-color: #2196F3;
+            width: 0%;
+            transition: width 0.5s;
+        }
+
+        /* 弹框样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* 转换中提示弹框样式 */
+        #conversionModal {
+            display: none;
+            position: fixed;
+            z-index: 2; /* 确保它在其他弹框之上 */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        #conversionModal .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 8px;
+        }
+
+        /* 下载列表增强样式 */
+.download-list {
+    margin-top: 2rem;
+    background: #fff;
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.download-item {
+    padding: 0.8rem;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.download-link {
+    color: #2196F3;
+    text-decoration: none;
+    transition: color 0.2s;
+}
+
+.download-link:hover {
+    color: #1976D2;
+    text-decoration: underline;
+}
+
+        /* 新增下载按钮样式 */
+        .download-button {
+            background: #2196F3;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+            border: none;
+            font-size: 1rem;
+            display: inline-block;
+            text-decoration: none !important;
+        }
+
+        .download-button:hover {
+            background: #1976D2;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .upload-section {
+                padding: 1.5rem;
+                min-height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="nav">
+        <a href="/">首页</a>
+        <a href="/play_midi">播放</a>
+        <a href="/play_part">分声部播放</a>
+        <a href="/login">登录</a>
+        <a href="/register">注册</a>
+        <a href="/profile">个人</a>
+        <a href="/social">社交</a>
+    </nav>
+
+    <!-- 上传区域 -->
+    <div class="upload-section"
+         id="dropZone"
+         ondrop="handleDrop(event)"
+         ondragover="handleDragOver(event)"
+         ondragleave="handleDragLeave(event)">
+        <h2>将PDF乐谱拖放到这里 或</h2>
+        <label for="pdfUpload" class="upload-button">选择文件</label>
+        <input type="file" id="pdfUpload" accept="application/pdf" hidden>
+        <div id="uploadStatus" class="status-message"></div>
+        <button id="convertButton" class="upload-button" style="display: none;">开始转换</button>
+        <div class="progress-bar">
+            <div id="progressBarFill" class="progress-bar-fill"></div>
+        </div>
+    </div>
+
+    <!-- 转换中提示弹框 -->
+    <div id="conversionModal" class="modal">
+        <div class="modal-content">
+            <p id="conversionMessage">正在转换中，请稍等...</p>
+        </div>
+    </div>
+
+    <!-- 弹框 -->
+    <div id="myModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <p id="modalMessage">MIDI 文件已生成！</p>
+            <a id="downloadLink" class="download-button" download>MIDI 文件下载</a>
+            <button id="playButton" class="play-button" style="display: none;" onclick="playMidi()">播放 MIDI</button>
+        </div>
+    </div>
+
+    <!-- 下载列表 -->
+    <div class="download-list">
+        <h3>已下载的 MIDI 文件</h3>
+        <ul id="downloadedFilesList"></ul>
+    </div>
+
+    <script>
+        // 拖放事件处理
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('dropZone').classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('dropZone').classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('dropZone').classList.remove('dragover');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+
+        // 文件选择事件监听
+        document.getElementById('pdfUpload').addEventListener('change', function(e) {
+            if(e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // 统一文件处理函数
+        function handleFile(file) {
+            if (!validateFile(file)) return;
+
+            showStatus('正在上传文件中...', 'uploading');
+            uploadFile(file);
+        }
+
+        // 文件验证
+        function validateFile(file) {
+            // 文件类型验证
+            if (file.type !== 'application/pdf') {
+                showStatus('错误：仅支持PDF格式文件', 'error');
+                return false;
+            }
+
+            // 文件大小验证（15MB限制）
+            const maxSize = 15 * 1024 * 1024;
+            if (file.size > maxSize) {
+                showStatus('错误：文件大小超过15MB限制', 'error');
+                return false;
+            }
+
+            return true;
+        }
+
+        // 文件上传
+        function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('pdf', file);
+
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`上传失败：${response.statusText}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    showStatus('文件上传成功', 'success');
+                    document.getElementById('convertButton').style.display = 'block';
+                    document.getElementById('convertButton').addEventListener('click', () => {
+                        startConversion(data.task_id);
+                    });
+                } else {
+                    showStatus(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showStatus(error.message, 'error');
+            });
+        }
+
+        // 状态显示
+        function showStatus(message, type) {
+            const statusElement = document.getElementById('uploadStatus');
+            statusElement.textContent = message;
+            statusElement.className = `status-message ${type}`;
+        }
+
+        // 修正后的 startConversion 函数
+function startConversion(taskId) {
+    const progressBarFill = document.getElementById('progressBarFill');
+    progressBarFill.style.width = '0%';
+
+    // 显示转换中提示弹框
+    const conversionModal = document.getElementById('conversionModal');
+    conversionModal.style.display = 'block';
+
+    // 5秒后隐藏提示弹框
+    setTimeout(() => {
+        conversionModal.style.display = 'none';
+    }, 5000);
+
+    fetch(`/api/convert/${taskId}`, {
+        method: 'POST'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`转换失败：${response.statusText}`);
+        }
+        return response.json(); // ✅ 正确的位置解析JSON
+    })
+    .then(data => {
+        if (data.success) {
+            // 更新进度条到 50%
+            progressBarFill.style.width = '60%';
+            showModal('PDF 转 MXL 文件完成，正在解压 MXL 文件...');
+
+            // 模拟解压 MXL 文件的延迟
+            setTimeout(() => {
+                // 更新进度条到 75%
+                progressBarFill.style.width = '75%';
+                showModal('MXL 文件解压完成，正在转换为 MIDI 文件...');
+
+                // 模拟转换为 MIDI 文件的延迟
+                setTimeout(() => {
+                    // 更新进度条到 100%
+                    progressBarFill.style.width = '100%';
+                    // ✅ 正确传递所有参数
+                    showModal('MIDI 文件已生成！', null, data.midi_db_id, data.filename);
+                }, 1000);
+            }, 1000);
+        } else {
+            showStatus(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showStatus(error.message, 'error');
+    }); // ❌ 删除多余的.then链
+}
+
+        // 显示弹框
+        function showModal(message, downloadUrl = null, midiDbId = null, filename = null) {
+          const modal = document.getElementById('myModal');
+          const modalMessage = document.getElementById('modalMessage');
+          const downloadLink = document.getElementById('downloadLink');
+          modalMessage.textContent = message;
+          if (midiDbId && filename) {
+        // 使用后端返回的filename设置下载属性
+        downloadLink.href = `/download/${midiDbId}`;
+        downloadLink.download = filename; // 关键修改：强制使用指定文件名
+        downloadLink.textContent = `下载 ${filename}`;
+        downloadLink.style.display = 'inline-block';
+
+        // 添加点击事件记录下载
+        downloadLink.onclick = function() {
+            recordDownloadedFile(this.href, filename);
+        };
+    }
+
+        modal.style.display = 'block';
+        }
+
+        // 播放 MIDI 文件
+        function playMidi() {
+            const playButton = document.getElementById('playButton');
+            const midiDbId = playButton.getAttribute('data-midi-db-id');
+            window.location.href = `/play_midi?midi_db_id=${midiDbId}`;
+        }
+
+        // 关闭弹框
+        function closeModal() {
+            const modal = document.getElementById('myModal');
+            modal.style.display = 'none';
+
+            // 恢复初始状态
+            resetInitialState();
+        }
+
+        function recordDownloadedFile(downloadUrl, filename) {
+    const list = document.getElementById('downloadedFilesList');
+
+    // 去重检查：避免重复记录相同URL
+    const existingLinks = Array.from(list.getElementsByTagName('a'));
+    if (existingLinks.some(link => link.href === downloadUrl)) {
+        return;
+    }
+
+    // 创建带文件名和时间的记录项
+    const listItem = document.createElement('li');
+    listItem.className = 'download-item';
+
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.textContent = filename || '未命名文件';
+    link.download = true;
+    link.className = 'download-link';
+
+    const timeSpan = document.createElement('span');
+    timeSpan.textContent = new Date().toLocaleString();
+    timeSpan.style.marginLeft = '10px';
+    timeSpan.style.color = '#666';
+
+    listItem.appendChild(link);
+    listItem.appendChild(timeSpan);
+    list.appendChild(listItem);
+}
+
+        // 恢复初始状态
+        function resetInitialState() {
+            // 清除状态提示
+            const statusElement = document.getElementById('uploadStatus');
+            statusElement.textContent = '';
+            statusElement.className = 'status-message';
+
+            // 隐藏“开始转换”按钮
+            document.getElementById('convertButton').style.display = 'none';
+
+            // 移除“开始转换”按钮的点击事件
+            document.getElementById('convertButton').removeEventListener('click', startConversion);
+
+            // 清除上传区域的拖拽样式
+            document.getElementById('dropZone').classList.remove('dragover');
+
+            // 重置进度条
+            const progressBarFill = document.getElementById('progressBarFill');
+            progressBarFill.style.width = '0%';
+        }
+    </script>
+</body>
+</html>
