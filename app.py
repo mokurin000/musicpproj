@@ -17,6 +17,8 @@ from functools import wraps
 # 加载环境变量
 load_dotenv()
 
+AUD_PATH = os.environ.get("AUDIVERIS_PATH", "C:/Program Files/Audiveris/Audiveris.exe")
+
 # 初始化应用
 app = Flask(__name__)
 CORS(app, origins=os.getenv("ALLOWED_ORIGINS", "http://localhost:3000"))
@@ -578,7 +580,7 @@ def start_conversion(task_id):
 
         # 使用绝对路径执行命令
         command = [
-            "C:/Program Files/Audiveris/Audiveris.exe",
+            AUD_PATH,
             "-batch",
             "-export",
             "-output",
