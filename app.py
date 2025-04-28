@@ -379,7 +379,12 @@ def get_social_feed():
             {"$limit": 10},
         ]
 
-        feed = list(social_collection.aggregate(pipeline))
+        feeds = list(social_collection.aggregate(pipeline))
+
+        for feed in feeds:
+            task = midi_collection.find_one({"_id": ObjectId(feed["file_id"])})
+            if task is not None:
+                feed["task_id"] = task["task_id"]
 
         return jsonify(
             [
@@ -388,7 +393,7 @@ def get_social_feed():
                     "created_at": f["created_at"].isoformat(),
                     "current_user_id": str(current_user_id),  # 返回当前用户ID供前端比对
                 }
-                for f in feed
+                for f in feeds
             ]
         ), 200
 
