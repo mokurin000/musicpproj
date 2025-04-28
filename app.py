@@ -402,46 +402,6 @@ def get_social_feed():
         return jsonify({"success": False, "message": "获取动态失败"}), 500
 
 
-# @app.route('/api/comment/<comment_id>', methods=['DELETE'])
-# @login_required
-# def delete_comment(comment_id):
-#     try:
-#         current_user_id = session.get('user_id')
-#         if not current_user_id:
-#             return jsonify({"success": False, "message": "未登录"}), 401
-#
-#         # 直接使用字符串操作（无需转换ObjectId）
-#         parent_doc = social_collection.find_one(
-#             {"comments._id": comment_id},
-#             {"_id": 1}
-#         )
-#
-#         if not parent_doc:
-#             return jsonify({"success": False, "message": "评论不存在"}), 404
-#
-#         result = social_collection.update_one(
-#             {
-#                 "_id": parent_doc["_id"],
-#                 "comments": {
-#                     "$elemMatch": {
-#                         "_id": comment_id,
-#                         "user_id": current_user_id  # 直接比较字符串
-#                     }
-#                 }
-#             },
-#             {"$pull": {"comments": {"_id": comment_id}}}
-#         )
-#
-#         if result.modified_count == 0:
-#             return jsonify({"success": False, "message": "删除失败"}), 404
-#
-#         return jsonify({"success": True}), 200
-#
-#     except Exception as e:
-#         logger.error(f"删除失败: {str(e)}")
-#         return jsonify({"success": False, "message": "服务器错误"}), 500
-
-
 # ------------------------- 点赞路由 -------------------------
 @app.route("/api/like/<social_id>", methods=["POST"])
 @login_required
